@@ -1,0 +1,256 @@
+ 
+<div *ngIf="!isAuthenticated" class="login-container">
+  <app-login></app-login>
+</div>
+
+<!-- Mostrar PRODUCTOS si está autenticado -->
+<div *ngIf="isAuthenticated" class="app-container">
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <div class="header-left">
+        <h1 class="title">
+          <i class="icon">📦</i>
+          {{ title }}
+        </h1>
+        <div class="user-info" *ngIf="currentUser">
+          <span class="user-greeting">Hola, {{ currentUser.nombre }}</span>
+        </div>
+      </div>
+      
+      <div class="header-right">
+        <button 
+          class="btn btn-secondary logout-btn"
+          (click)="logout()"
+          title="Cerrar sesión"
+        >
+          <i class="btn-icon">🚪</i>
+          Cerrar Sesión
+        </button>
+      </div>
+      
+      <div class="stats">
+        <div class="stat">
+          <span class="stat-number">{{ totalProductos }}</span>
+          <span class="stat-label">Productos</span>
+        </div>
+        <div class="stat">
+          <span class="stat-number">{{ totalStock }}</span>
+          <span class="stat-label">Stock Total</span>
+        </div>
+        <div class="stat">
+          <span class="stat-number">{{ valorTotal | currency:'USD':'symbol':'1.0-0' }}</span>
+          <span class="stat-label">Valor Total</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mensajes -->
+  <div *ngIf="mensaje" class="message" [ngClass]="'message-' + tipoMensaje">
+    <span class="message-text">{{ mensaje }}</span>
+    <button class="message-close" (click)="mensaje = ''">×</button>
+  </div>
+
+  <!-- Controles principales -->
+  <div class="controls">
+    <div class="search-section">
+      <div class="search-box">
+        <i class="search-icon">🔍</i>
+        <input 
+          type="text" 
+          [(ngModel)]="filtroNombre" 
+          placeholder="Buscar productos por nombre..." 
+          class="search-input"
+        />
+        <button 
+          *ngIf="filtroNombre" 
+          class="clear-search" 
+          (click)="filtroNombre = ''"
+          title="Limpiar búsqueda"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+    
+    <div class="action-buttons">
+      <button 
+        class="btn btn-success" 
+        (click)="abrirModal()"
+      >
+        <i class="btn-icon">➕</i>
+        Nuevo Producto
+      </button>
+    </div>
+  </div>
+
+
+  <!-- Tabla de productos -->
+  <div class="table-container">
+    <div class="table-header">
+      <h3>Lista de Productos</h3>
+      <span class="product-count">
+        {{ filtroNombre ? 
+          productosFiltrados.length + ' de ' + productos.length + ' producto(s) encontrado(s)' : 
+          productosFiltrados.length + ' producto(s) total' 
+        }}
+      </span>
+    </div>
+    
+    <div *ngIf="cargando" class="loading">
+      <div class="spinner"></div>
+      <span>Cargando productos...</span>
+    </div>
+    
+    <div *ngIf="!cargando && productosFiltrados.length === 0" class="empty-state">
+      <div class="empty-icon">📦</div>
+      <h4>{{ filtroNombre ? 'No se encontraron productos' : 'No hay productos' }}</h4>
+      <p>{{ filtroNombre ? 'No hay productos que coincidan con "' + filtroNombre + '"' : 'Agrega tu primer producto para comenzar' }}</p>
+    </div>
+    
+    <div *ngIf="!cargando && productosFiltrados.length > 0" class="table-wrapper">
+      <table class="products-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nombre</th>
+            <th>Precio</th>
+            <th>Stock</th>
+            <th>Valor Total</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let p of productosFiltrados" class="product-row">
+            <td class="product-id">{{ p.id }}</td>
+            <td class="product-name">{{ p.nombre }}</td>
+            <td class="product-price">{{ p.precio }}</td>
+            <td class="product-stock">
+              <span class="stock-badge" [ngClass]="p.stock === 0 ? 'stock-empty' : (p.stock < 10 ? 'stock-low' : 'stock-ok')">
+                {{ p.stock }}
+              </span>
+            </td>
+            <td class="product-total">{{ (p.precio * p.stock)  }}</td>
+            <td class="product-actions">
+              <button 
+                class="btn btn-sm btn-edit" 
+                (click)="editarProducto(p)"
+                title="Editar producto"
+              >
+                <i class="btn-icon">✏️</i>
+              </button>
+              <button 
+                class="btn btn-sm btn-danger" 
+                (click)="eliminarProducto(p.id)"
+                title="Eliminar producto"
+              >
+                <i class="btn-icon">🗑️</i>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Modal para agregar/editar productos -->
+  <div *ngIf="mostrarModal" class="modal-overlay" (click)="cerrarModal()">
+    <div class="modal-container" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <i class="modal-icon">{{ editandoProducto ? '✏️' : '➕' }}</i>
+          {{ editandoProducto ? 'Editar Producto' : 'Agregar Nuevo Producto' }}
+        </h3>
+        <button class="modal-close" (click)="cerrarModal()">
+          <i class="close-icon">✕</i>
+        </button>
+      </div>
+      
+      <div class="modal-body">
+        <form [formGroup]="productoForm" (ngSubmit)="editandoProducto ? actualizarProducto() : agregarProducto()" class="modal-form">
+          <div class="form-group">
+            <label for="modal-nombre" class="form-label">
+              <i class="label-icon">📦</i>
+              Nombre del Producto
+            </label>
+            <input 
+              id="modal-nombre"
+              type="text" 
+              formControlName="nombre" 
+              placeholder="Ingresa el nombre del producto"
+              class="form-input"
+              [class.error]="productoForm.get('nombre')?.invalid && productoForm.get('nombre')?.touched"
+            />
+            <div *ngIf="productoForm.get('nombre')?.invalid && productoForm.get('nombre')?.touched" class="error-message">
+              <span *ngIf="productoForm.get('nombre')?.errors?.['required']">El nombre es requerido</span>
+              <span *ngIf="productoForm.get('nombre')?.errors?.['minlength']">Mínimo 2 caracteres</span>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="modal-precio" class="form-label">
+              <i class="label-icon">💰</i>
+              Precio (USD)
+            </label>
+            <input 
+              id="modal-precio"
+              type="number" 
+              formControlName="precio" 
+              placeholder="0.00"
+              step="0.01"
+              min="0.01"
+              class="form-input"
+              [class.error]="productoForm.get('precio')?.invalid && productoForm.get('precio')?.touched"
+            />
+            <div *ngIf="productoForm.get('precio')?.invalid && productoForm.get('precio')?.touched" class="error-message">
+              <span *ngIf="productoForm.get('precio')?.errors?.['required']">El precio es requerido</span>
+              <span *ngIf="productoForm.get('precio')?.errors?.['min']">El precio debe ser mayor a 0</span>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="modal-stock" class="form-label">
+              <i class="label-icon">📊</i>
+              Stock
+            </label>
+            <input 
+              id="modal-stock"
+              type="number" 
+              formControlName="stock" 
+              placeholder="0"
+              min="0"
+              class="form-input"
+              [class.error]="productoForm.get('stock')?.invalid && productoForm.get('stock')?.touched"
+            />
+            <div *ngIf="productoForm.get('stock')?.invalid && productoForm.get('stock')?.touched" class="error-message">
+              <span *ngIf="productoForm.get('stock')?.errors?.['required']">El stock es requerido</span>
+              <span *ngIf="productoForm.get('stock')?.errors?.['min']">El stock no puede ser negativo</span>
+            </div>
+          </div>
+        </form>
+      </div>
+      
+      <div class="modal-footer">
+        <button 
+          type="button" 
+          class="btn btn-secondary" 
+          (click)="cerrarModal()"
+        >
+          <i class="btn-icon">❌</i>
+          Cancelar
+        </button>
+        
+        <button 
+          type="submit" 
+          class="btn btn-success"
+          [disabled]="productoForm.invalid || cargando"
+          (click)="editandoProducto ? actualizarProducto() : agregarProducto()"
+        >
+          <i class="btn-icon">💾</i>
+          {{ cargando ? 'Guardando...' : (editandoProducto ? 'Actualizar' : 'Agregar') }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
