@@ -143,7 +143,7 @@ describe('AppComponent', () => {
       
       component.cargarProductos();
       
-      expect(component.cargando).toBe(false); // Should be false after completion
+      expect(component.cargando).toBe(false); // mmmm
     });
   });
 
